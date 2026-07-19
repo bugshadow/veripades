@@ -1,0 +1,62 @@
+### Collection de tests pour l'API Node.js
+### Extension REST Client pour VSCode conseillee (.http)
+
+@baseUrl = http://localhost:3000/api
+
+### Authentification POC avec compte de test seede
+# Email: test@dgssi.ma
+# Mot de passe de test uniquement: TestPOC2026!
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+    "email": "test@dgssi.ma",
+    "password": "TestPOC2026!"
+}
+
+### Coller ici le token JWT renvoye par /auth/login
+@token = remplacer-par-le-token-recu
+
+### 1. Upload d'un document PDF
+POST {{baseUrl}}/documents
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="test_document.pdf"
+Content-Type: application/pdf
+
+< ./chemin/vers/un/pdf/local.pdf
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### 2. Lister les documents
+GET {{baseUrl}}/documents
+Authorization: Bearer {{token}}
+
+### 3. Voir le statut du document (Remplacer l'ID par celui renvoye par l'upload)
+GET {{baseUrl}}/documents/00000000-0000-4000-8000-000000000001
+Authorization: Bearer {{token}}
+
+### 4. Signer le document
+POST {{baseUrl}}/documents/00000000-0000-4000-8000-000000000001/sign
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+    "signerId": "local-test-signer"
+}
+
+### 5. Verifier un document par ID public (aucun token requis)
+POST {{baseUrl}}/documents/00000000-0000-4000-8000-000000000001/verify
+
+### 6. Verifier un PDF signe par upload direct public
+POST {{baseUrl}}/documents/verify
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="document-signe.pdf"
+Content-Type: application/pdf
+
+< ./chemin/vers/un/pdf-signe.pdf
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+

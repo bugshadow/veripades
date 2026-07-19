@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DEMO — Signature Électronique Sécurisée</title>
+  <style>
+    body {
+      font-family: Georgia, 'Times New Roman', serif;
+      background: #fff;
+      color: #2c2c2c;
+      margin: 0;
+      padding: 0;
+      line-height: 1.6;
+    }
+
+    header {
+      background: #5c3d2e;
+      color: #fff;
+      padding: 1rem 2rem;
+      font-size: 0.95rem;
+    }
+
+    header strong {
+      font-weight: normal;
+      letter-spacing: 0.03em;
+    }
+
+    header .right {
+      float: right;
+      font-family: 'Courier New', monospace;
+      font-size: 0.75rem;
+      color: #d4b9a9;
+    }
+
+    .container {
+      max-width: 740px;
+      margin: 0 auto;
+      padding: 1.5rem 1rem;
+    }
+
+    h2 {
+      font-size: 0.85rem;
+      font-weight: normal;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #5c3d2e;
+      border-bottom: 2px solid #5c3d2e;
+      padding-bottom: 0.3rem;
+      margin: 2rem 0 1rem 0;
+    }
+
+    h2:first-child {
+      margin-top: 0;
+    }
+
+    .num {
+      display: inline-block;
+      background: #5c3d2e;
+      color: #fff;
+      width: 20px;
+      height: 20px;
+      text-align: center;
+      line-height: 20px;
+      font-size: 0.75rem;
+      font-family: 'Courier New', monospace;
+      margin-right: 0.4rem;
+      vertical-align: middle;
+    }
+
+    .num.ok {
+      background: #4a7c59;
+    }
+
+    .field {
+      margin-bottom: 0.6rem;
+    }
+
+    .field label {
+      display: inline-block;
+      width: 110px;
+      font-size: 0.82rem;
+      color: #666;
+      vertical-align: top;
+      padding-top: 0.35rem;
+    }
+
+    .field input[type="text"],
+    .field input[type="password"],
+    .field input[type="email"] {
+      font-family: 'Courier New', monospace;
+      font-size: 0.82rem;
+      padding: 0.35rem 0.5rem;
+      border: 1px solid #bbb;
+      width: 340px;
+      max-width: 55%;
+      background: #fafafa;
+    }
+
+    .field input:focus {
+      outline: none;
+      border-color: #5c3d2e;
+    }
+
+    .field input[type="file"] {
+      font-size: 0.8rem;
+    }
+
+    .btn {
+      font-family: Georgia, serif;
+      font-size: 0.8rem;
+      padding: 0.4rem 1.2rem;
+      background: #5c3d2e;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      margin-left: 110px;
+      margin-top: 0.2rem;
+    }
+
+    .btn:hover {
+      background: #7a5240;
+    }
+
+    .btn:disabled {
+      background: #aaa;
+      cursor: not-allowed;
+    }
+
+    .btn-sm {
+      font-size: 0.72rem;
+      padding: 0.25rem 0.6rem;
+      margin-left: 0.4rem;
+      background: #8b7355;
+    }
+
+    .btn-sm:hover {
+      background: #5c3d2e;
+    }
+
+    .result {
+      font-family: 'Courier New', monospace;
+      font-size: 0.78rem;
+      background: #f5f0eb;
+      border: 1px solid #d4c4b8;
+      padding: 0.6rem 0.8rem;
+      margin-top: 0.6rem;
+      margin-left: 110px;
+      white-space: pre-wrap;
+      word-break: break-all;
+      display: none;
+    }
+
+    .result.show {
+      display: block;
+    }
+
+    .result.err {
+      border-color: #a94442;
+      background: #f2dede;
+      color: #a94442;
+    }
+
+    .result.ok {
+      border-color: #4a7c59;
+      background: #eef5f0;
+      color: #2d5a3a;
+    }
+
+    .hash {
+      font-family: 'Courier New', monospace;
+      font-size: 0.72rem;
+      background: #f9f6f3;
+      border: 1px solid #d4c4b8;
+      padding: 0.3rem 0.5rem;
+      margin-top: 0.15rem;
+      word-break: break-all;
+      margin-left: 110px;
+    }
+
+    .hash-title {
+      font-size: 0.7rem;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-top: 0.5rem;
+      margin-left: 110px;
+      margin-bottom: 0;
+    }
+
+    .id-row {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-left: 110px;
+      margin-top: 0.15rem;
+    }
+
+    .id-row span {
+      font-family: 'Courier New', monospace;
+      font-size: 0.75rem;
+      background: #f9f6f3;
+      border: 1px solid #d4c4b8;
+      padding: 0.3rem 0.5rem;
+      flex: 1;
+      word-break: break-all;
+    }
+
+    .badge {
+      display: inline-block;
+      font-family: 'Courier New', monospace;
+      font-size: 0.85rem;
+      font-weight: bold;
+      padding: 0.3rem 0.8rem;
+      margin-bottom: 0.5rem;
+      margin-left: 110px;
+    }
+
+    .badge.ok {
+      background: #eef5f0;
+      color: #2d5a3a;
+      border: 2px solid #4a7c59;
+    }
+
+    .badge.nok {
+      background: #f2dede;
+      color: #a94442;
+      border: 2px solid #a94442;
+    }
+
+    .detail {
+      font-size: 0.8rem;
+      margin-left: 110px;
+      margin-top: 0.5rem;
+      border-collapse: collapse;
+      width: calc(100% - 110px);
+    }
+
+    .detail td {
+      padding: 0.2rem 0.5rem;
+      border-bottom: 1px solid #e8e0d8;
+      vertical-align: top;
+    }
+
+    .detail td:first-child {
+      color: #888;
+      width: 140px;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .detail td:last-child {
+      font-family: 'Courier New', monospace;
+      font-size: 0.75rem;
+      word-break: break-all;
+    }
+
+    hr {
+      border: none;
+      border-top: 1px solid #e0d8d0;
+      margin: 1.5rem 0;
+    }
+
+    footer {
+      text-align: center;
+      font-size: 0.7rem;
+      color: #999;
+      padding: 1.5rem 1rem;
+      border-top: 1px solid #e0d8d0;
+      margin-top: 2rem;
+    }
+
+    @media (max-width: 600px) {
+      .field label,
+      .btn,
+      .result,
+      .hash,
+      .hash-title,
+      .id-row,
+      .badge,
+      .detail {
+        margin-left: 0;
+        display: block;
+      }
+      .field input[type="text"],
+      .field input[type="password"],
+      .field input[type="email"] {
+        width: 100%;
+        max-width: 100%;
+      }
+      .detail {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="right" id="apiBadge"></span>
+  <strong>DÉMONSTRATION — Signature Électronique Sécurisée</strong>
+</header>
+
+<div class="container">
+
+  <h2><span class="num" id="loginNum">1</span> Connexion</h2>
+  <div class="field">
+    <label for="loginEmail">Email</label>
+    <input type="email" id="loginEmail" value="test@dgssi.ma">
+  </div>
+  <div class="field">
+    <label for="loginPass">Mot de passe</label>
+    <input type="password" id="loginPass" value="TestPOC2026!">
+  </div>
+  <button class="btn" id="loginBtn" onclick="doLogin()">Se connecter</button>
+  <div class="result" id="loginResult"></div>
+
+  <hr>
+
+  <h2><span class="num" id="uploadNum">2</span> Upload PDF</h2>
+  <div class="field">
+    <label>Fichier</label>
+    <input type="file" id="uploadFile" accept=".pdf">
+  </div>
+  <button class="btn" id="uploadBtn" onclick="doUpload()" disabled>Uploader</button>
+  <div class="result" id="uploadResult"></div>
+  <div id="uploadDocId" style="display:none">
+    <p class="hash-title">ID du document</p>
+    <div class="id-row">
+      <span id="docIdValue"></span>
+      <button class="btn btn-sm" onclick="copyDocId()">Copier l'ID</button>
+    </div>
+  </div>
+
+  <hr>
+
+  <h2><span class="num" id="signNum">3</span> Signature</h2>
+  <div class="field">
+    <label for="signDocId">ID document</label>
+    <input type="text" id="signDocId" placeholder="UUID">
+  </div>
+  <button class="btn" id="signBtn" onclick="doSign()" disabled>Signer</button>
+  <div class="result" id="signResult"></div>
+  <div id="signHashes" style="display:none">
+    <p class="hash-title">Hash avant signature (SHA-256)</p>
+    <div class="hash" id="hashBefore"></div>
+    <p class="hash-title">Hash après signature (SHA-256)</p>
+    <div class="hash" id="hashAfter"></div>
+  </div>
+
+  <hr>
+
+  <h2><span class="num" id="verifyNum">4</span> Vérification</h2>
+  <div class="field">
+    <label for="verifyDocId">ID document</label>
+    <input type="text" id="verifyDocId" placeholder="UUID">
+  </div>
+  <button class="btn" id="verifyBtn" onclick="doVerify()">Vérifier</button>
+  <div class="result" id="verifyResult"></div>
+  <div id="verifyDetails" style="display:none"></div>
+
+</div>
+
+<footer>
+  Démonstration backend — Signature Électronique Sécurisée — POC 2026
+</footer>
+
+<script>
+  var API_URL = 'http://localhost:3000';
+  var jwtToken = null;
+
+  document.getElementById('apiBadge').textContent = 'API: ' + API_URL;
+
+  document.getElementById('uploadFile').addEventListener('change', function () {
+    document.getElementById('uploadBtn').disabled = !this.files.length;
+  });
+
+  function show(boxId, text, cls) {
+    var el = document.getElementById(boxId);
+    el.textContent = text;
+    el.className = 'result show ' + (cls || '');
+  }
+
+  function setNum(id, ok) {
+    var el = document.getElementById(id);
+    el.className = ok ? 'num ok' : 'num';
+  }
+
+  function apiFetch(path, opts) {
+    return fetch(API_URL + path, opts).then(function (res) {
+      var ct = res.headers.get('content-type') || '';
+      var p = ct.indexOf('application/json') !== -1 ? res.json() : res.text();
+      return p.then(function (data) {
+        if (!res.ok) {
+          var msg = (data && data.error) ? data.error : 'Erreur HTTP ' + res.status;
+          throw new Error(msg);
+        }
+        return data;
+      });
+    });
+  }
+
+  function doLogin() {
+    var email = document.getElementById('loginEmail').value.trim();
+    var pass = document.getElementById('loginPass').value;
+    if (!email || !pass) { show('loginResult', 'Email et mot de passe requis.', 'err'); return; }
+    document.getElementById('loginBtn').disabled = true;
+    apiFetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email, password: pass })
+    }).then(function (d) {
+      jwtToken = d.token;
+      var trunc = d.token.substring(0, 40) + '...';
+      show('loginResult', 'Token : ' + trunc + '\nUtilisateur : ' + d.user.email + '\nID : ' + d.user.id, 'ok');
+      setNum('loginNum', true);
+      document.getElementById('uploadBtn').disabled = !document.getElementById('uploadFile').files.length;
+      document.getElementById('signBtn').disabled = false;
+    }).catch(function (e) {
+      show('loginResult', 'Erreur : ' + e.message, 'err');
+      setNum('loginNum', false);
+      jwtToken = null;
+    }).finally(function () {
+      document.getElementById('loginBtn').disabled = false;
+    });
+  }
+
+  function doUpload() {
+    var fi = document.getElementById('uploadFile');
+    if (!fi.files.length) return;
+    if (!jwtToken) { show('uploadResult', 'Connectez-vous d\'abord.', 'err'); return; }
+    document.getElementById('uploadBtn').disabled = true;
+    var fd = new FormData();
+    fd.append('file', fi.files[0]);
+    apiFetch('/api/documents', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + jwtToken },
+      body: fd
+    }).then(function (d) {
+      show('uploadResult', d.originalName + '\nTaille : ' + d.size + ' octets\nStatut : ' + d.status, 'ok');
+      document.getElementById('docIdValue').textContent = d.id;
+      document.getElementById('uploadDocId').style.display = '';
+      document.getElementById('signDocId').value = d.id;
+      document.getElementById('verifyDocId').value = d.id;
+      setNum('uploadNum', true);
+    }).catch(function (e) {
+      show('uploadResult', 'Erreur : ' + e.message, 'err');
+      setNum('uploadNum', false);
+    }).finally(function () {
+      document.getElementById('uploadBtn').disabled = false;
+    });
+  }
+
+  function copyDocId() {
+    var txt = document.getElementById('docIdValue').textContent;
+    navigator.clipboard.writeText(txt);
+    var b = document.querySelector('#uploadDocId .btn-sm');
+    b.textContent = 'Copié';
+    setTimeout(function () { b.textContent = "Copier l'ID"; }, 1200);
+  }
+
+  function doSign() {
+    var docId = document.getElementById('signDocId').value.trim();
+    if (!docId) { show('signResult', 'ID requis.', 'err'); return; }
+    if (!jwtToken) { show('signResult', 'Connectez-vous d\'abord.', 'err'); return; }
+    document.getElementById('signBtn').disabled = true;
+    apiFetch('/api/documents/' + docId + '/sign', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwtToken },
+      body: JSON.stringify({ signerId: 'demo-signer' })
+    }).then(function (d) {
+      show('signResult', d.message + '\nPDF signé : ' + d.details.signed_pdf_path, 'ok');
+      document.getElementById('hashBefore').textContent = d.details.before_sha256;
+      document.getElementById('hashAfter').textContent = d.details.after_sha256;
+      document.getElementById('signHashes').style.display = '';
+      document.getElementById('verifyDocId').value = docId;
+      setNum('signNum', true);
+    }).catch(function (e) {
+      show('signResult', 'Erreur : ' + e.message, 'err');
+      setNum('signNum', false);
+    }).finally(function () {
+      document.getElementById('signBtn').disabled = false;
+    });
+  }
+
+  function doVerify() {
+    var docId = document.getElementById('verifyDocId').value.trim();
+    if (!docId) { show('verifyResult', 'ID requis.', 'err'); return; }
+    document.getElementById('verifyBtn').disabled = true;
+    apiFetch('/api/documents/' + docId + '/verify', {
+      method: 'POST'
+    }).then(function (d) {
+      var intact = d.is_integral;
+      var badge = '<div class="badge ' + (intact ? 'ok' : 'nok') + '">' + (intact ? 'INTACT' : 'ALTÉRÉ') + '</div>';
+      var rows = '';
+      rows += '<tr><td>Intégrité</td><td>' + d.integrity + '</td></tr>';
+      rows += '<tr><td>is_integral</td><td>' + d.is_integral + '</td></tr>';
+      rows += '<tr><td>Message</td><td>' + d.message + '</td></tr>';
+      rows += '<tr><td>Date signature</td><td>' + d.signature_date + '</td></tr>';
+      if (d.signer) {
+        rows += '<tr><td>Signataire</td><td>' + (d.signer.common_name || '—') + '</td></tr>';
+        rows += '<tr><td>Organisation</td><td>' + (d.signer.organization || '—') + '</td></tr>';
+        rows += '<tr><td>N° série</td><td>' + (d.signer.serial_number || '—') + '</td></tr>';
+      }
+      if (d.certificate_chain) {
+        rows += '<tr><td>Chaîne</td><td>' + d.certificate_chain.length + ' certificat(s)</td></tr>';
+      }
+      document.getElementById('verifyResult').className = 'result show ok';
+      document.getElementById('verifyResult').textContent = 'Vérification terminée';
+      document.getElementById('verifyDetails').innerHTML = badge + '<table class="detail">' + rows + '</table>';
+      document.getElementById('verifyDetails').style.display = '';
+      setNum('verifyNum', true);
+    }).catch(function (e) {
+      show('verifyResult', 'Erreur : ' + e.message, 'err');
+      setNum('verifyNum', false);
+      document.getElementById('verifyDetails').style.display = 'none';
+    }).finally(function () {
+      document.getElementById('verifyBtn').disabled = false;
+    });
+  }
+</script>
+
+</body>
+</html>

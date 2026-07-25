@@ -36,6 +36,9 @@ router.get('/:id', authMiddleware, documentsController.getDocument);
 // POST /api/documents/:id/sign - Declenche la signature
 router.post('/:id/sign', authMiddleware, documentsController.signDocument);
 
+// GET /api/documents/:id/download - Telecharge le PDF signe
+router.get('/:id/download', authMiddleware, documentsController.downloadDocument);
+
 // POST /api/documents/:id/verify - Verification publique par identifiant partage.
 // La reponse est filtree cote service pour ne pas exposer les donnees du proprietaire.
 router.post('/:id/verify', verifyRateLimiter, upload.single('file'), documentsController.verifyDocument);

@@ -55,6 +55,25 @@ class DocumentsController {
         }
     }
 
+    async downloadDocument(req, res, next) {
+        try {
+            const document = await documentService.getDocumentById(req.params.id, req.user.id);
+            if (!document) {
+                return res.status(404).json({ error: 'Document non trouve.' });
+            }
+            if (document.status !== 'SIGNED' || !document.signedFilePath) {
+                return res.status(404).json({ error: 'Le document signe n\'est pas disponible au telechargement.' });
+            }
+            if (!fs.existsSync(document.signedFilePath)) {
+                return res.status(404).json({ error: 'Fichier signe introuvable sur le serveur.' });
+            }
+            const downloadName = document.originalName.replace(/\.pdf$/i, '') + '-signe.pdf';
+            res.download(document.signedFilePath, downloadName);
+        } catch (error) {
+            next(error);
+        }
+    }
+
     async verifyDocument(req, res, next) {
         let uploadedPath = null;
 

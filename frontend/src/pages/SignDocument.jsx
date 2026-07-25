@@ -1,183 +1,71 @@
-import { useRef, useState } from 'react';
-import { MainLayout } from '../components/layout/MainLayout';
-import { ButtonStamp } from '../components/ui/ButtonStamp';
+﻿import { Check, Copy, Download, FileCheck2, RotateCcw } from 'lucide-react';
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { WorkspaceLayout } from '../components/layout/WorkspaceLayout';
 import { ApiFeedback } from '../components/ui/ApiFeedback';
+import { ButtonStamp } from '../components/ui/ButtonStamp';
+import { FileDropzone } from '../components/ui/FileDropzone';
 import { SealStamp } from '../components/ui/SealStamp';
-import { DocumentScanner } from '../components/documents/DocumentScanner';
-import { randomSealRotation } from '../utils/certificate';
-import api, { getApiErrorMessage } from '../lib/api';
-
-const minimumScanTime = 900;
-const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+import { useAuth } from '../context/AuthContext';
+import api, { copyToClipboard, downloadFile, getApiErrorMessage } from '../lib/api';
 
 export const SignDocument = () => {
+  const { user } = useAuth();
   const [file, setFile] = useState(null);
-  const [status, setStatus] = useState('IDLE');
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
   const [document, setDocument] = useState(null);
-  const [signatureDetails, setSignatureDetails] = useState(null);
-  const [sealRotation, setSealRotation] = useState(-8);
-  const fileInputRef = useRef(null);
+  const [details, setDetails] = useState(null);
+  const [phase, setPhase] = useState('idle');
+  const [error, setError] = useState('');
+  const [copied, setCopied] = useState(false);
 
-  const uploadForHash = async (selected) => {
-    if (!selected) return;
-    if (selected.type !== 'application/pdf') {
-      setError(new Error('Format invalide. Seuls les fichiers PDF sont acceptes.'));
-      setSuccess(null);
-      return;
-    }
-
-    setFile(selected);
-    setStatus('UPLOADING');
-    setDocument(null);
-    setSignatureDetails(null);
-    setError(null);
-    setSuccess(null);
-
+  const selectFile = async (selected) => {
+    setError(''); setDetails(null); setDocument(null);
+    if (selected.type !== 'application/pdf' && !selected.name.toLowerCase().endsWith('.pdf')) { setError('Le document doit être un fichier PDF.'); setFile(null); return; }
+    if (selected.size > 10 * 1024 * 1024) { setError('Le document dépasse la limite de 10 Mo.'); setFile(null); return; }
+    setFile(selected); setPhase('uploading');
     try {
-      const startedAt = performance.now();
-      const formData = new FormData();
-      formData.append('file', selected);
-      const uploadResponse = await api.post('/documents', formData);
-      const elapsed = performance.now() - startedAt;
-      if (elapsed < minimumScanTime) await wait(minimumScanTime - elapsed);
-      setDocument(uploadResponse.data);
-      setStatus('READY');
-      setSuccess(`Empreinte SHA-256 lue pour ${uploadResponse.data.originalName}.`);
-    } catch (err) {
-      setError(new Error(getApiErrorMessage(err)));
-      setStatus('IDLE');
-    }
+      const body = new FormData(); body.append('file', selected);
+      const response = await api.post('/documents', body);
+      setDocument(response.data); setPhase('ready');
+    } catch (requestError) { setError(await getApiErrorMessage(requestError)); setPhase('idle'); }
   };
 
-  const handleFileChange = (event) => {
-    uploadForHash(event.target.files?.[0]);
+  const sign = async () => {
+    if (!document || !user) return;
+    setError(''); setPhase('signing');
+    try {
+      const response = await api.post(`/documents/${document.id}/sign`, { signerId: user.id });
+      setDetails(response.data.details || {}); setPhase('success');
+    } catch (requestError) { setError(await getApiErrorMessage(requestError)); setPhase('ready'); }
   };
 
-  const handleDrop = (event) => {
-    event.preventDefault();
-    if (status === 'UPLOADING' || status === 'SIGNING') return;
-    uploadForHash(event.dataTransfer.files?.[0]);
-  };
+  const reset = () => { setFile(null); setDocument(null); setDetails(null); setError(''); setCopied(false); setPhase('idle'); };
 
-  const handleProcess = async () => {
+  const downloadSigned = async () => {
     if (!document) return;
-    setStatus('SIGNING');
-    setError(null);
-    setSuccess(null);
-    setSignatureDetails(null);
-
-    try {
-      const signResponse = await api.post(`/documents/${document.id}/sign`, {
-        signerId: 'local-test-signer',
-      });
-      setSealRotation(randomSealRotation());
-      setSignatureDetails(signResponse.data.details);
-      window.localStorage.setItem('cachet:freshDocumentId', document.id);
-      setSuccess('Document signe cryptographiquement avec succes.');
-      setStatus('SUCCESS');
-    } catch (err) {
-      setError(new Error(getApiErrorMessage(err)));
-      setStatus('READY');
-    }
+    const baseName = (file?.name || 'document').replace(/\.pdf$/i, '');
+    const result = await downloadFile(`/documents/${document.id}/download`, `${baseName}-signe.pdf`);
+    if (!result.success) setError(result.message);
   };
 
-  const resetForm = () => {
-    setFile(null);
-    setStatus('IDLE');
-    setError(null);
-    setSuccess(null);
-    setDocument(null);
-    setSignatureDetails(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
+  const copyDocumentId = async () => {
+    if (!document?.id) return;
+    const ok = await copyToClipboard(document.id);
+    setCopied(ok);
+    if (ok) setTimeout(() => setCopied(false), 2000);
   };
-
-  const isLoading = status === 'UPLOADING' || status === 'SIGNING';
-  const scannerPhase = status === 'UPLOADING' ? 'uploading' : status === 'SIGNING' ? 'looping' : 'idle';
+  const busy = phase === 'uploading' || phase === 'signing';
+  const sealState = phase === 'success' ? 'valid' : busy ? 'progress' : 'pending';
 
   return (
-    <MainLayout>
-      <header style={{ marginBottom: '3rem' }}>
-        <h1>Apposer un Sceau</h1>
-        <p style={{ color: 'var(--color-text-muted)' }}>
-          Televersez un document PDF pour lire son empreinte, puis apposer le cachet cryptographique.
-        </p>
-      </header>
-
-      <div className="sign-workbench">
-        <div className="card-kraft sign-workbench__main">
-          <ApiFeedback error={error} success={success} />
-
-          {status === 'SUCCESS' ? (
-            <div className="completion-panel">
-              <div className="completion-panel__status">[OPERATION TERMINEE]</div>
-              <h2>Acte Scelle avec Succes</h2>
-              <p>Le document {file.name} a ete signe cryptographiquement.</p>
-              {document && <code>ID document : {document.id}</code>}
-              {signatureDetails?.after_sha256 && (
-                <div className="completion-panel__hash">
-                  <span>SHA-256 signe</span>
-                  <code>{signatureDetails.after_sha256}</code>
-                </div>
-              )}
-              <ButtonStamp onClick={resetForm}>NOUVEAU DOCUMENT</ButtonStamp>
-            </div>
-          ) : (
-            <>
-              <div
-                className="upload-zone upload-zone--scanner"
-                onClick={() => !isLoading && fileInputRef.current?.click()}
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={handleDrop}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(event) => {
-                  if ((event.key === 'Enter' || event.key === ' ') && !isLoading) fileInputRef.current?.click();
-                }}
-                style={{ borderColor: file ? 'var(--color-text-main)' : 'var(--color-border)' }}
-              >
-                <input
-                  type="file"
-                  accept="application/pdf"
-                  ref={fileInputRef}
-                  onChange={handleFileChange}
-                  style={{ display: 'none' }}
-                  disabled={isLoading}
-                />
-                {file ? (
-                  <DocumentScanner file={file} phase={scannerPhase} hash={document?.beforeHash} />
-                ) : (
-                  <div>
-                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', marginBottom: '0.5rem' }}>
-                      Cliquer ou deposer un fichier PDF
-                    </div>
-                    <div style={{ color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}>
-                      Le scan calcule l'empreinte SHA-256 reelle via l'API.
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="sign-workbench__actions">
-                <div className="certificate-strength">{'[\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2591\u2591] ECDSA P-256 \u00b7 certificat POC'}</div>
-                <ButtonStamp primary={true} disabled={!document || isLoading} isLoading={status === 'SIGNING'} onClick={handleProcess}>
-                  SCELLER L'ACTE
-                </ButtonStamp>
-              </div>
-            </>
-          )}
-        </div>
-
-        <aside className="sign-workbench__seal">
-          <h3>Statut du cachet</h3>
-          <SealStamp
-            state={status === 'SUCCESS' ? 'valid' : status === 'SIGNING' ? 'progress' : 'pending'}
-            impact={status === 'SUCCESS'}
-            rotation={sealRotation}
-          />
-        </aside>
+    <WorkspaceLayout eyebrow="OPÉRATION PROTÉGÉE · SIGN-01" title="Apposer un cachet" description="Le PDF est d’abord enregistré et haché par l’API, puis signé par le microservice pyHanko.">
+      <div className="workbench">
+        <section className="workbench__main">
+          <ApiFeedback error={error} success={phase === 'success' ? 'Le document a été signé et inscrit au registre.' : ''} />
+          {phase === 'success' ? <div className="completion-dossier"><span className="section-index">OPÉRATION TERMINÉE</span><h2>Acte scellé avec succès</h2><p>{file?.name}</p><dl><div><dt>ID DOCUMENT</dt><dd className="with-copy"><code>{document?.id}</code><button type="button" className="copy-id-button" onClick={copyDocumentId} title="Copier l’identifiant du document">{copied ? <Check size={15} /> : <Copy size={15} />}{copied ? 'Copié' : 'Copier'}</button></dd></div><div><dt>SHA-256 AVANT</dt><dd><code>{details?.before_sha256 || document?.beforeHash || 'Non exposé'}</code></dd></div><div><dt>SHA-256 SIGNÉ</dt><dd><code>{details?.after_sha256 || 'Non exposé'}</code></dd></div></dl><div className="completion-dossier__actions"><ButtonStamp primary icon={Download} onClick={downloadSigned}>Télécharger le PDF signé</ButtonStamp><Link className="stamp-button" to={`/documents/${document?.id}`}><FileCheck2 size={17} />Ouvrir la fiche</Link><ButtonStamp icon={RotateCcw} onClick={reset}>Signer un autre PDF</ButtonStamp></div></div> : <><FileDropzone file={file} onFile={selectFile} disabled={busy} title="Déposer le PDF à signer" description="L’API calcule l’empreinte SHA-256 dès le dépôt" />{document && <div className="hash-receipt"><span>RÉCÉPISSÉ D’EMPREINTE</span><strong>{document.originalName}</strong><code>{document.beforeHash || 'Empreinte non renvoyée'}</code><small>ID · {document.id}</small></div>}<div className="workbench-actions"><span>[ECDSA P-256 · CERTIFICAT POC]</span><ButtonStamp primary icon={FileCheck2} disabled={!document || busy} isLoading={phase === 'signing'} loadingLabel="Signature PAdES en cours" onClick={sign}>Apposer le cachet</ButtonStamp></div></>}
+        </section>
+        <aside className="workbench__seal"><span className="section-index">ÉTAT DU CACHET</span><SealStamp state={sealState} size="xl" impact={phase === 'success'} rotation={-8.5} /><strong>{phase === 'uploading' ? 'CALCUL DE L’EMPREINTE' : phase === 'signing' ? 'SIGNATURE EN COURS' : phase === 'success' ? 'ACTE VALIDÉ' : phase === 'ready' ? 'PRÊT À SIGNER' : 'EN ATTENTE DU PDF'}</strong><p>{phase === 'signing' ? 'Le service cryptographique construit le conteneur CMS et l’intègre au PDF.' : 'Aucune clé privée n’est manipulée dans le navigateur.'}</p></aside>
       </div>
-    </MainLayout>
+    </WorkspaceLayout>
   );
 };

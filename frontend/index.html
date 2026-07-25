@@ -1,10 +1,15 @@
 <!doctype html>
-<html lang="en">
+<html lang="fr" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content="Le Cachet Numérique, POC de signature PAdES et de vérification cryptographique de documents PDF." />
+    <meta name="theme-color" content="#0E1110" />
+    <script>
+      try { if (localStorage.getItem('cachet-theme') === 'light') document.documentElement.dataset.theme = 'light'; } catch (_) {}
+    </script>
+    <title>Le Cachet Numérique · Signature PAdES</title>
   </head>
   <body>
     <div id="root"></div>

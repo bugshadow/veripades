@@ -1,260 +1,73 @@
-﻿import { useEffect, useState } from 'react';
-import { MainLayout } from '../components/layout/MainLayout';
-import { ButtonStamp } from '../components/ui/ButtonStamp';
-import { ApiFeedback } from '../components/ui/ApiFeedback';
-import { SealStamp } from '../components/ui/SealStamp';
+﻿import { FileSearch, Hash, SearchCheck, ShieldCheck } from 'lucide-react';
+import { useState } from 'react';
+import { PublicLayout } from '../components/layout/PublicLayout';
 import { AnimatedHash } from '../components/ui/AnimatedHash';
-import { HashComparator } from '../components/documents/HashComparator';
-import { InspectorPanel } from '../components/documents/InspectorPanel';
-import { certificateStrengthLabel, randomSealRotation } from '../utils/certificate';
-import { useAuth } from '../context/AuthContext';
+import { ApiFeedback } from '../components/ui/ApiFeedback';
+import { ButtonStamp } from '../components/ui/ButtonStamp';
+import { FileDropzone } from '../components/ui/FileDropzone';
+import { SealStamp } from '../components/ui/SealStamp';
 import api, { getApiErrorMessage } from '../lib/api';
 
+const sha256 = async (file) => {
+  const buffer = await file.arrayBuffer();
+  const digest = await window.crypto.subtle.digest('SHA-256', buffer);
+  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+};
+
 export const VerifyDocument = () => {
-  const { user } = useAuth();
-  const [documents, setDocuments] = useState([]);
-  const [selectedDocumentId, setSelectedDocumentId] = useState('');
-  const [manualDocumentId, setManualDocumentId] = useState('');
-  const [verificationFile, setVerificationFile] = useState(null);
-  const [mode, setMode] = useState('id');
-  const [isLoadingDocuments, setIsLoadingDocuments] = useState(Boolean(user));
-  const [isVerifying, setIsVerifying] = useState(false);
+  const [mode, setMode] = useState('file');
+  const [file, setFile] = useState(null);
+  const [documentId, setDocumentId] = useState('');
   const [report, setReport] = useState(null);
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
-  const [inspectorOpen, setInspectorOpen] = useState(false);
-  const [sealRotation, setSealRotation] = useState(-8);
+  const [localHash, setLocalHash] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [verificationKey, setVerificationKey] = useState(0);
 
-  useEffect(() => {
-    if (!user) {
-      setDocuments([]);
-      setIsLoadingDocuments(false);
-      return;
-    }
-
-    const fetchDocuments = async () => {
-      setIsLoadingDocuments(true);
-      setError(null);
-      try {
-        const response = await api.get('/documents');
-        setDocuments(response.data);
-        const firstSigned = response.data.find((doc) => doc.status === 'SIGNED');
-        if (firstSigned) {
-          setSelectedDocumentId(firstSigned.id);
-          setManualDocumentId(firstSigned.id);
-        }
-        setSuccess(`${response.data.length} document(s) disponibles pour verification.`);
-      } catch (err) {
-        setError(new Error(getApiErrorMessage(err)));
-      } finally {
-        setIsLoadingDocuments(false);
-      }
-    };
-
-    fetchDocuments();
-  }, [user]);
-
-  const selectedDocument = documents.find((doc) => doc.id === selectedDocumentId);
-  const idToVerify = selectedDocumentId || manualDocumentId.trim();
-
-  const handleVerify = async () => {
-    if (mode === 'file' && !verificationFile) return;
-    if (mode === 'id' && !idToVerify) return;
-
-    setIsVerifying(true);
-    setReport(null);
-    setError(null);
-    setSuccess(null);
-    setInspectorOpen(false);
-
-    try {
-      const response = mode === 'file'
-        ? await api.post('/documents/verify', buildVerificationFormData(verificationFile), {
-            publicRequest: true,
-            headers: { 'Content-Type': 'multipart/form-data' }
-          })
-        : await api.post(`/documents/${idToVerify}/verify`, undefined, { publicRequest: true });
-
-      setReport(response.data);
-      setSealRotation(randomSealRotation());
-      setSuccess(response.data.is_integral ? 'Verification terminee : document authentique.' : 'Verification terminee : alteration detectee.');
-    } catch (err) {
-      setError(new Error(getApiErrorMessage(err)));
-    } finally {
-      setIsVerifying(false);
-    }
+  const selectFile = (selected) => {
+    setError(''); setReport(null); setLocalHash('');
+    if (selected.type !== 'application/pdf' && !selected.name.toLowerCase().endsWith('.pdf')) { setError('Le document à vérifier doit être un fichier PDF.'); setFile(null); return; }
+    if (selected.size > 10 * 1024 * 1024) { setError('Le document dépasse la limite publique de 10 Mo.'); setFile(null); return; }
+    setFile(selected);
   };
 
-  const isBusy = isLoadingDocuments || isVerifying;
-  const altered = report && !report.is_integral;
-  const canVerify = mode === 'file' ? Boolean(verificationFile) : Boolean(idToVerify);
+  const verify = async () => {
+    if ((mode === 'file' && !file) || (mode === 'id' && !documentId.trim())) return;
+    setLoading(true); setError(''); setReport(null); setLocalHash('');
+    try {
+      let response;
+      if (mode === 'file') {
+        const [hash, result] = await Promise.all([sha256(file), (() => { const body = new FormData(); body.append('file', file); return api.post('/documents/verify', body, { publicRequest: true }); })()]);
+        setLocalHash(hash); response = result;
+      } else response = await api.post(`/documents/${documentId.trim()}/verify`, null, { publicRequest: true });
+      setReport(response.data); setVerificationKey((value) => value + 1);
+    } catch (requestError) {
+      const status = requestError?.response?.status;
+      setError(status === 404 ? 'Document introuvable ou non vérifiable.' : getApiErrorMessage(requestError));
+    } finally { setLoading(false); }
+  };
+
+  const valid = report?.is_integral === true;
+  const sealState = loading ? 'progress' : report ? (valid ? 'valid' : 'invalid') : 'pending';
 
   return (
-    <MainLayout>
-      <header style={{ marginBottom: '3rem' }}>
-        <h1>Verification d'Authenticite</h1>
-        <p style={{ color: 'var(--color-text-muted)' }}>
-          Analyse cryptographique du cachet et de l'integrite du contenu d'un document signe.
-        </p>
-      </header>
-
-      <div className="verify-workbench">
-        <div className="verify-workbench__main">
-          <div className="card-kraft">
-            <ApiFeedback error={error} success={success} />
-            <div className="verify-controls">
-              <div className="input-group" style={{ marginBottom: 0 }}>
-                <label>Mode de verification</label>
-                <select
-                  value={mode}
-                  onChange={(event) => {
-                    setMode(event.target.value);
-                    setReport(null);
-                    setSuccess(null);
-                    setInspectorOpen(false);
-                  }}
-                  disabled={isBusy}
-                >
-                  <option value="id">Verifier par ID document</option>
-                  <option value="file">Verifier un PDF recu</option>
-                </select>
-              </div>
-
-              {mode === 'id' ? (
-                user && documents.length > 0 ? (
-                  <div className="input-group" style={{ marginBottom: 0 }}>
-                    <label>Document signe a verifier</label>
-                    <select
-                      value={selectedDocumentId}
-                      onChange={(event) => {
-                        setSelectedDocumentId(event.target.value);
-                        setManualDocumentId(event.target.value);
-                        setReport(null);
-                        setSuccess(null);
-                        setInspectorOpen(false);
-                      }}
-                      disabled={isBusy}
-                    >
-                      <option value="">Selectionner un document</option>
-                      {documents.map((doc) => (
-                        <option key={doc.id} value={doc.id}>
-                          {doc.originalName} - {doc.status}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                ) : (
-                  <div className="input-group" style={{ marginBottom: 0 }}>
-                    <label>ID document a verifier</label>
-                    <input
-                      value={manualDocumentId}
-                      onChange={(event) => {
-                        setManualDocumentId(event.target.value);
-                        setSelectedDocumentId('');
-                        setReport(null);
-                        setSuccess(null);
-                        setInspectorOpen(false);
-                      }}
-                      disabled={isBusy}
-                      placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                    />
-                  </div>
-                )
-              ) : (
-                <div className="input-group" style={{ marginBottom: 0 }}>
-                  <label>PDF signe recu</label>
-                  <input
-                    type="file"
-                    accept="application/pdf,.pdf"
-                    disabled={isBusy}
-                    onChange={(event) => {
-                      setVerificationFile(event.target.files?.[0] || null);
-                      setReport(null);
-                      setSuccess(null);
-                      setInspectorOpen(false);
-                    }}
-                  />
-                </div>
-              )}
-
-              <ButtonStamp primary={true} disabled={!canVerify || isBusy} isLoading={isVerifying} onClick={handleVerify}>
-                LANCER L'AUDIT
-              </ButtonStamp>
-            </div>
-            {mode === 'id' && selectedDocument && <div className="document-id-line">ID : {selectedDocument.id}</div>}
-          </div>
-
-          <div className="card-kraft verification-report">
-            <ApiFeedback isLoading={isBusy} />
-
-            {!isBusy && report ? (
-              <div>
-                <div className="verification-report__head">
-                  <div>
-                    <h3>Journal d'Audit</h3>
-                    <span className={report.is_integral ? 'verdict-text verdict-text--valid' : 'verdict-text verdict-text--invalid'}>
-                      {report.is_integral ? '[SUCCES] Integrite cryptographique validee' : '[ALERTE] Faille d integrite detectee'}
-                    </span>
-                  </div>
-                  <button className="inspector-toggle" onClick={() => setInspectorOpen((value) => !value)}>
-                    {'\u2315'} INSPECTEUR
-                  </button>
-                </div>
-
-                <HashComparator before={report.cms_message_digest || report.integrity || ''} after={report.computed_sha256 || report.integrity || ''} altered={altered} animate={true} />
-
-                <div className="report-grid">
-                  <div>
-                    <strong>IDENTITE DU SIGNATAIRE</strong>
-                    <span>CN=<AnimatedHash value={report.signer?.common_name || '-'} active={true} /></span>
-                    <small>O={report.signer?.organization || '-'}</small>
-                  </div>
-                  <div>
-                    <strong>DATE DE SIGNATURE</strong>
-                    <span><AnimatedHash value={report.signature_date || '-'} active={true} /></span>
-                    <small>{certificateStrengthLabel(report)}</small>
-                  </div>
-                  <div>
-                    <strong>CERTIFICAT</strong>
-                    <span>{report.certificate_chain?.every((certificate) => certificate.valid) ? 'Chaine valide et non revoquee' : 'Chaine invalide, expiree ou revoquee'}</span>
-                    <small>SN: {report.signer?.serial_number || '-'}</small>
-                  </div>
-                </div>
-
-                {inspectorOpen && <InspectorPanel report={report} />}
-              </div>
-            ) : (
-              <div className="empty-audit-state">
-                En attente d un document a analyser...
-              </div>
-            )}
-          </div>
+    <PublicLayout className="verify-page">
+      <section className="public-tool-heading dossier-grid"><aside className="binder-margin"><span>CONTRÔLE</span><strong>VER-03</strong><small>ACCÈS · PUBLIC</small></aside><div><span className="section-index">VÉRIFICATION PUBLIQUE · SANS COMPTE</span><h1>Contrôler un cachet numérique</h1><p>Soumettez le PDF reçu ou la référence partagée. Le rapport public exclut les données du propriétaire.</p></div></section>
+      <section className="verify-console">
+        <div className="verify-console__controls">
+          <div className="segmented-control" role="tablist" aria-label="Mode de vérification"><button type="button" role="tab" aria-selected={mode === 'file'} className={mode === 'file' ? 'is-active' : ''} onClick={() => { setMode('file'); setReport(null); setError(''); }}><FileSearch size={17} />PDF reçu</button><button type="button" role="tab" aria-selected={mode === 'id'} className={mode === 'id' ? 'is-active' : ''} onClick={() => { setMode('id'); setReport(null); setError(''); }}><SearchCheck size={17} />Identifiant</button></div>
+          <ApiFeedback error={error} />
+          {mode === 'file' ? <FileDropzone file={file} onFile={selectFile} disabled={loading} title="Déposer le PDF signé" description="Le fichier est vérifié publiquement, sans ouvrir de session" /> : <label className="document-id-field"><span>ID DU DOCUMENT</span><input value={documentId} onChange={(event) => { setDocumentId(event.target.value); setReport(null); }} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" /></label>}
+          <ButtonStamp primary icon={ShieldCheck} isLoading={loading} loadingLabel="Analyse cryptographique" disabled={mode === 'file' ? !file : !documentId.trim()} onClick={verify}>Vérifier le document</ButtonStamp>
+          <small className="rate-note">ENDPOINT PUBLIC · LIMITE 20 REQUÊTES / MINUTE / IP</small>
         </div>
-
-        <aside className="verify-workbench__seal">
-          <h3>Verdict</h3>
-          <SealStamp
-            state={report ? (report.is_integral ? 'valid' : 'invalid') : 'pending'}
-            impact={Boolean(report)}
-            cracked={Boolean(report && !report.is_integral)}
-            rotation={sealRotation}
-            size="lg"
-          />
-
-          {report && (
-            <div className={report.is_integral ? 'verdict-title verdict-title--valid' : 'verdict-title verdict-title--invalid'}>
-              {report.is_integral ? 'ACTE AUTHENTIQUE' : 'ACTE ALTERE'}
-            </div>
-          )}
+        <aside className={`verification-verdict ${report ? (valid ? 'verification-verdict--valid' : 'verification-verdict--invalid') : ''}`}>
+          <span className="section-index">VERDICT</span><SealStamp state={sealState} size="xl" impact={Boolean(report)} rotation={valid ? -8.5 : -5.5} />
+          <h2>{loading ? 'Analyse en cours' : report ? (valid ? 'Acte authentique' : 'Altération détectée') : 'En attente de preuve'}</h2>
+          <p>{loading ? 'Lecture du conteneur PAdES et de la chaîne de certificats.' : report?.message || 'Aucun document n’a encore été soumis.'}</p>
         </aside>
-      </div>
-    </MainLayout>
+      </section>
+      {report && <section className="verification-report" key={verificationKey}><div className="verification-report__heading"><span className="section-index">RAPPORT PUBLIC FILTRÉ</span><h2>Résultat de l’inspection</h2></div><div className="report-ledger"><div className="report-ledger__hash"><span><Hash size={16} /> EMPREINTE SHA-256 DU FICHIER SOUMIS</span>{localHash ? <code><AnimatedHash value={localHash} active chunk={8} /></code> : <p>Non exposée par l’API publique lors d’une vérification par identifiant.</p>}</div><div><span>INTÉGRITÉ</span><strong>{report.integrity || (valid ? 'VALIDE' : 'INVALIDE')}</strong></div><div><span>SIGNATAIRE DU CERTIFICAT</span><strong>{report.signer?.common_name || 'Non exposé'}</strong><small>{report.signer?.organization || ''}</small></div><div><span>DATE DE SIGNATURE</span><strong>{report.signature_date || 'Non exposée'}</strong></div><div><span>NUMÉRO DE SÉRIE</span><code>{report.signer?.serial_number || 'Non exposé'}</code></div><div><span>CHAÎNE PKI</span><strong>{report.certificate_chain?.length || 0} certificat(s)</strong></div></div>{report.certificate_chain?.length > 0 && <div className="certificate-ledger">{report.certificate_chain.map((certificate, index) => <div key={`${certificate.serial_number}-${index}`}><span>{certificate.role || `CERTIFICAT ${index + 1}`}</span><strong>{certificate.common_name || 'Sujet non exposé'}</strong><small>{certificate.valid ? 'VALIDE' : 'À CONTRÔLER'} · émis par {certificate.issuer || '—'} · {certificate.days_remaining ?? '—'} jours restants</small></div>)}</div>}</section>}
+    </PublicLayout>
   );
 };
-
-const buildVerificationFormData = (file) => {
-  const formData = new FormData();
-  formData.append('file', file);
-  return formData;
-};
-

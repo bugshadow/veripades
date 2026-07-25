@@ -187,5 +187,6 @@ logs/
 .DS_Store
 Thumbs.db
 Desktop.ini
+PRODUCT.md
 
-
+DESIGN.md

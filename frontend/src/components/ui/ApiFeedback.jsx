@@ -1,29 +1,9 @@
-﻿export const ApiFeedback = ({ isLoading, error, success }) => {
-  if (isLoading) {
-    return (
-      <div className="loading-overlay">
-        <div className="terminal-loader">
-          [SYSTEM] Execution de la requete cryptographique en cours...
-        </div>
-      </div>
-    );
-  }
+﻿import { AlertTriangle, CheckCircle2, Info } from 'lucide-react';
 
-  if (error) {
-    return (
-      <div className="error-banner">
-        <strong>[ERREUR]</strong> {error.message || error}
-      </div>
-    );
-  }
-
-  if (success) {
-    return (
-      <div className="success-banner">
-        <strong>[SUCCES]</strong> {success}
-      </div>
-    );
-  }
-
-  return null;
+export const ApiFeedback = ({ error, success, info }) => {
+  const value = error || success || info;
+  if (!value) return null;
+  const kind = error ? 'error' : success ? 'success' : 'info';
+  const Icon = error ? AlertTriangle : success ? CheckCircle2 : Info;
+  return <div className={`feedback feedback--${kind}`} role={error ? 'alert' : 'status'}><Icon size={17} aria-hidden="true" /><span>{value?.message || value}</span></div>;
 };
